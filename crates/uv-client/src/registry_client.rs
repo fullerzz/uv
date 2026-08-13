@@ -2,14 +2,16 @@ use std::collections::BTreeMap;
 use std::fmt::{self, Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use async_http_range_reader::AsyncHttpRangeReader;
 use futures::{FutureExt, StreamExt, TryStreamExt};
 use http::{HeaderMap, StatusCode};
 use itertools::Either;
+use jiff::Timestamp;
 use reqwest::{Proxy, Response};
 use rustc_hash::FxHashMap;
+use serde::Deserialize;
 use tokio::sync::{Mutex, Semaphore};
 use tracing::{Instrument, debug, info_span, instrument, trace, warn};
 use url::Url;
@@ -637,7 +639,7 @@ impl RegistryClient {
                     ))
                 })?;
 
-                let unarchived = match media_type {
+                let mut unarchived = match media_type {
                     MediaType::PyxV1Msgpack => {
                         let bytes = response.bytes().await.map_err(|err| {
                             ErrorKind::from_reqwest(
@@ -706,6 +708,24 @@ impl RegistryClient {
                         SimpleDetailMetadata::from_html(&text, package_name, &url)?
                     }
                 };
+
+                if unarchived.has_missing_upload_times()
+                    && let Some(metadata_url) =
+                        artifactory_package_metadata_url(index, package_name)
+                {
+                    match self
+                        .fetch_artifactory_upload_times(&metadata_url)
+                        .await
+                    {
+                        Ok(upload_times) => unarchived.fill_upload_times(&upload_times),
+                        Err(error) => {
+                            debug!(
+                                "Failed to fetch Artifactory package metadata from {metadata_url}: {error}"
+                            );
+                        }
+                    }
+                }
+
                 OwnedArchive::from_unarchived(&unarchived)
             }
             .boxed_local()
@@ -721,6 +741,39 @@ impl RegistryClient {
             )
             .await?;
         Ok(simple)
+    }
+
+    /// Fetch upload times from Artifactory's legacy PyPI package metadata API.
+    async fn fetch_artifactory_upload_times(
+        &self,
+        url: &DisplaySafeUrl,
+    ) -> Result<FxHashMap<SmallString, i64>, Error> {
+        let start = Instant::now();
+        let response = self
+            .uncached_client(url)
+            .get(Url::from(url.clone()))
+            .header("Accept-Encoding", "gzip, deflate, zstd")
+            .header("Accept", "application/json")
+            .send()
+            .await
+            .map_err(|error| {
+                Error::from_reqwest_middleware(
+                    url.clone(),
+                    error,
+                    start,
+                    self.client.certificate_source(),
+                )
+            })?
+            .error_for_status()
+            .map_err(|error| {
+                ErrorKind::from_reqwest(url.clone(), error, self.client.certificate_source())
+            })?;
+        let bytes = response.bytes().await.map_err(|error| {
+            ErrorKind::from_reqwest(url.clone(), error, self.client.certificate_source())
+        })?;
+        let metadata: PypiProjectMetadata = serde_json::from_slice(bytes.as_ref())
+            .map_err(|error| Error::from_json_err(error, url.clone()))?;
+        Ok(metadata.upload_times())
     }
 
     /// Fetch the [`SimpleDetailMetadata`] from a local file, using a PEP 503-compatible directory
@@ -1676,6 +1729,34 @@ impl SimpleDetailMetadata {
         self.versions.iter()
     }
 
+    fn has_missing_upload_times(&self) -> bool {
+        self.versions.iter().any(|version| {
+            version
+                .files
+                .source_dists
+                .iter()
+                .chain(&version.files.wheels)
+                .any(|file| !file.has_upload_time)
+        })
+    }
+
+    fn fill_upload_times(&mut self, upload_times: &FxHashMap<SmallString, i64>) {
+        for file in self.versions.iter_mut().flat_map(|version| {
+            version
+                .files
+                .source_dists
+                .iter_mut()
+                .chain(&mut version.files.wheels)
+        }) {
+            if !file.has_upload_time
+                && let Some(upload_time) = upload_times.get(file.filename())
+            {
+                file.upload_time_utc_ms = *upload_time;
+                file.has_upload_time = true;
+            }
+        }
+    }
+
     fn from_pypi_files(
         files: Vec<uv_pypi_types::PypiFile>,
         package_name: &PackageName,
@@ -1833,6 +1914,63 @@ impl SimpleDetailMetadata {
             base.as_url(),
         ))
     }
+}
+
+/// Return the legacy PyPI metadata endpoint for a standard Artifactory index URL.
+fn artifactory_package_metadata_url(
+    index: &IndexUrl,
+    package_name: &PackageName,
+) -> Option<DisplaySafeUrl> {
+    let mut url = index.root()?;
+    {
+        let mut segments = url.path_segments()?;
+        segments.next_back()?;
+        if !segments.next_back()?.eq_ignore_ascii_case("pypi")
+            || !segments.next_back()?.eq_ignore_ascii_case("api")
+        {
+            return None;
+        }
+    }
+    url.path_segments_mut()
+        .ok()?
+        .push("pypi")
+        .push(package_name.as_ref())
+        .push("json");
+    Some(url)
+}
+
+#[derive(Debug, Deserialize)]
+struct PypiProjectMetadata {
+    #[serde(default)]
+    releases: FxHashMap<SmallString, Vec<PypiProjectFileMetadata>>,
+}
+
+impl PypiProjectMetadata {
+    fn upload_times(self) -> FxHashMap<SmallString, i64> {
+        self.releases
+            .into_values()
+            .flatten()
+            .filter_map(|file| {
+                file.upload_time_iso_8601
+                    .or_else(|| {
+                        file.upload_time.and_then(|upload_time| {
+                            upload_time
+                                .parse()
+                                .ok()
+                                .or_else(|| format!("{upload_time}Z").parse().ok())
+                        })
+                    })
+                    .map(|upload_time| (file.filename, upload_time.as_millisecond()))
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PypiProjectFileMetadata {
+    filename: SmallString,
+    upload_time: Option<SmallString>,
+    upload_time_iso_8601: Option<Timestamp>,
 }
 
 impl IntoIterator for SimpleDetailMetadata {

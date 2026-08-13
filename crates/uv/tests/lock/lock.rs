@@ -36381,6 +36381,79 @@ fn lock_exclude_newer_hint() -> Result<()> {
     Ok(())
 }
 
+/// Artifactory's HTML Simple API omits upload times, but its legacy PyPI metadata API includes
+/// them. Use those timestamps when applying `exclude-newer` to a private Artifactory index.
+#[cfg(feature = "test-universal")]
+#[tokio::test]
+async fn lock_exclude_newer_artifactory_html() -> Result<()> {
+    let context = uv_test::test_context!("3.12");
+    let proxy = crate::pypi_proxy::start().await;
+
+    context
+        .temp_dir
+        .child("pyproject.toml")
+        .write_str(&format!(
+            r#"
+            [project]
+            name = "project"
+            version = "0.1.0"
+            requires-python = ">=3.12"
+            dependencies = ["iniconfig==2.0.0"]
+
+            [tool.uv.sources]
+            iniconfig = {{ index = "internal" }}
+
+            [[tool.uv.index]]
+            name = "internal"
+            url = "{}"
+            explicit = true
+            "#,
+            proxy.authenticated_url("public", "heron", "/artifactory/api/pypi/test/simple",)
+        ))?;
+
+    uv_snapshot!(context.filters(), context
+        .lock()
+        .arg("--exclude-newer")
+        .arg("2023-01-07T11:08:10Z"), @"
+    exit_code: 0 (success)
+    ----- stderr -----
+    Resolved 2 packages in [TIME]
+    ");
+
+    insta::with_settings!({ filters => context.filters() }, {
+        assert_snapshot!(context.read("uv.lock"), @r#"
+        version = 1
+        revision = 3
+        requires-python = ">=3.12"
+
+        [options]
+        exclude-newer = "2023-01-07T11:08:10Z"
+
+        [[package]]
+        name = "iniconfig"
+        version = "2.0.0"
+        source = { registry = "http://[LOCALHOST]/artifactory/api/pypi/test/simple" }
+        sdist = { url = "https://files.pythonhosted.org/packages/d7/4b/cbd8e699e64a6f16ca3a8220661b5f83792b3017d0f79807cb8708d33913/iniconfig-2.0.0.tar.gz", hash = "sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3", upload-time = "2023-01-07T11:08:11.254Z" }
+        wheels = [
+            { url = "https://files.pythonhosted.org/packages/ef/a6/62565a6e1cf69e10f5727360368e451d4b7f58beeac6173dc9db836a5b46/iniconfig-2.0.0-py3-none-any.whl", hash = "sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374", upload-time = "2023-01-07T11:08:09.864Z" },
+        ]
+
+        [[package]]
+        name = "project"
+        version = "0.1.0"
+        source = { virtual = "." }
+        dependencies = [
+            { name = "iniconfig" },
+        ]
+
+        [package.metadata]
+        requires-dist = [{ name = "iniconfig", specifier = "==2.0.0", index = "http://[LOCALHOST]/artifactory/api/pypi/test/simple" }]
+        "#);
+    });
+
+    Ok(())
+}
+
 /// Test that `exclude-newer` can be disabled for a specific index.
 ///
 /// Regression test for:

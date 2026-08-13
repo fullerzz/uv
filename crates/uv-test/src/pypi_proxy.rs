@@ -20,6 +20,8 @@
 //! | `/basic-auth-eagle/simple/{pkg}/`   | `public:eagle` | Same, different password                               |
 //! | `/basic-auth-eagle/files/…`        | `public:eagle` | 302 redirect → `files.pythonhosted.org`                |
 //! | `/no-upload-time/simple/{pkg}/`     | No             | Simple API JSON without `upload-time`                  |
+//! | `/artifactory/api/pypi/test/simple/{pkg}/` | `public:heron` | Artifactory Simple API HTML without upload times |
+//! | `/artifactory/api/pypi/test/pypi/{pkg}/json` | `public:heron` | Artifactory PyPI package metadata JSON       |
 
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
@@ -35,6 +37,7 @@ pub fn pyx_test_token() -> &'static str {
 
 /// Package metadata needed to build Simple API responses.
 struct PackageEntry {
+    version: &'static str,
     filename: &'static str,
     url: &'static str,
     sha256: &'static str,
@@ -51,6 +54,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
         "iniconfig",
         vec![
             PackageEntry {
+                version: "2.0.0",
                 filename: "iniconfig-2.0.0-py3-none-any.whl",
                 url: "https://files.pythonhosted.org/packages/ef/a6/62565a6e1cf69e10f5727360368e451d4b7f58beeac6173dc9db836a5b46/iniconfig-2.0.0-py3-none-any.whl",
                 sha256: "b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374",
@@ -59,6 +63,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
                 upload_time: "2023-01-07T11:08:09.864Z",
             },
             PackageEntry {
+                version: "2.0.0",
                 filename: "iniconfig-2.0.0.tar.gz",
                 url: "https://files.pythonhosted.org/packages/d7/4b/cbd8e699e64a6f16ca3a8220661b5f83792b3017d0f79807cb8708d33913/iniconfig-2.0.0.tar.gz",
                 sha256: "2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3",
@@ -73,6 +78,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
         "anyio",
         vec![
             PackageEntry {
+                version: "4.3.0",
                 filename: "anyio-4.3.0-py3-none-any.whl",
                 url: "https://files.pythonhosted.org/packages/14/fd/2f20c40b45e4fb4324834aea24bd4afdf1143390242c0b33774da0e2e34f/anyio-4.3.0-py3-none-any.whl",
                 sha256: "048e05d0f6caeed70d731f3db756d35dcc1f35747c8c403364a8332c630441b8",
@@ -81,6 +87,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
                 upload_time: "2024-02-19T08:36:26.842Z",
             },
             PackageEntry {
+                version: "4.3.0",
                 filename: "anyio-4.3.0.tar.gz",
                 url: "https://files.pythonhosted.org/packages/db/4d/3970183622f0330d3c23d9b8a5f52e365e50381fd484d08e3285104333d3/anyio-4.3.0.tar.gz",
                 sha256: "f75253795a87df48568485fd18cdd2a3fa5c4f7c5be8e5e36637733fce06fed6",
@@ -95,6 +102,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
         "sniffio",
         vec![
             PackageEntry {
+                version: "1.3.1",
                 filename: "sniffio-1.3.1-py3-none-any.whl",
                 url: "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl",
                 sha256: "2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2",
@@ -103,6 +111,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
                 upload_time: "2024-02-25T23:20:01.196Z",
             },
             PackageEntry {
+                version: "1.3.1",
                 filename: "sniffio-1.3.1.tar.gz",
                 url: "https://files.pythonhosted.org/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz",
                 sha256: "f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc",
@@ -117,6 +126,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
         "idna",
         vec![
             PackageEntry {
+                version: "3.6",
                 filename: "idna-3.6-py3-none-any.whl",
                 url: "https://files.pythonhosted.org/packages/c2/e7/a82b05cf63a603df6e68d59ae6a68bf5064484a0718ea5033660af4b54a9/idna-3.6-py3-none-any.whl",
                 sha256: "c05567e9c24a6b9faaa835c4821bad0590fbb9d5779e7caa6e1cc4978e7eb24f",
@@ -125,6 +135,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
                 upload_time: "2023-11-25T15:40:52.604Z",
             },
             PackageEntry {
+                version: "3.6",
                 filename: "idna-3.6.tar.gz",
                 url: "https://files.pythonhosted.org/packages/bf/3f/ea4b9117521a1e9c50344b909be7886dd00a519552724809bb1f486986c2/idna-3.6.tar.gz",
                 sha256: "9ecdbbd083b06798ae1e86adcbfe8ab1479cf864e4ee30fe4e46a003d12491ca",
@@ -139,6 +150,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
         "executable-application",
         vec![
             PackageEntry {
+                version: "0.3.0",
                 filename: "executable_application-0.3.0-py3-none-any.whl",
                 url: "https://files.pythonhosted.org/packages/32/97/8ab6fa1bbcb0a888f460c0a19c301f4cc4180573564ad7dd98b5ceca2ab6/executable_application-0.3.0-py3-none-any.whl",
                 sha256: "ca272aee7332e9d266663bc70037cd3ef1d74ffae40030eaf9ca46462dc8dcc6",
@@ -147,6 +159,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
                 upload_time: "2025-01-17T23:21:22.716Z",
             },
             PackageEntry {
+                version: "0.3.0",
                 filename: "executable_application-0.3.0.tar.gz",
                 url: "https://files.pythonhosted.org/packages/9a/36/e803315469274d62f2dab543e3916c0b5b65730074d295f7d48711aa9e36/executable_application-0.3.0.tar.gz",
                 sha256: "0ef8c5ddd28649503c6e4a9f55be17e5b3bd0685df7b83ff7c260b481025f261",
@@ -161,6 +174,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
         "typing-extensions",
         vec![
             PackageEntry {
+                version: "4.10.0",
                 filename: "typing_extensions-4.10.0-py3-none-any.whl",
                 url: "https://files.pythonhosted.org/packages/f9/de/dc04a3ea60b22624b51c703a84bbe0184abcd1d0b9bc8074b5d6b7ab90bb/typing_extensions-4.10.0-py3-none-any.whl",
                 sha256: "69b1a937c3a517342112fb4c6df7e72fc39a38e7891a5730ed4985b5214b5475",
@@ -169,6 +183,7 @@ fn package_database() -> HashMap<&'static str, Vec<PackageEntry>> {
                 upload_time: "2024-02-25T22:12:47.72Z",
             },
             PackageEntry {
+                version: "4.10.0",
                 filename: "typing_extensions-4.10.0.tar.gz",
                 url: "https://files.pythonhosted.org/packages/16/3a/0d26ce356c7465a19c9ea8814b960f8a36c3b0d07c323176620b7b483e44/typing_extensions-4.10.0.tar.gz",
                 sha256: "b0abd7c89e8fb96f98db18d86106ff1d90ab692004eb746cf6eda2682f91b3cb",
@@ -276,6 +291,37 @@ fn build_simple_api_response_without_upload_time(
     })
 }
 
+/// Build an Artifactory-style HTML Simple API response without upload times.
+fn build_artifactory_simple_api_response(entries: &[PackageEntry]) -> String {
+    let links = entries.iter().map(|entry| {
+        format!(
+            r#"<a href="{}#sha256={}" data-requires-python="{}">{}</a><br/>"#,
+            entry.url,
+            entry.sha256,
+            entry.requires_python.unwrap_or_default(),
+            entry.filename,
+        )
+    });
+
+    format!(
+        "<!DOCTYPE html><html><body>{}</body></html>",
+        links.collect::<String>()
+    )
+}
+
+/// Build the legacy PyPI package metadata response served by Artifactory.
+fn build_artifactory_package_metadata_response(entries: &[PackageEntry]) -> serde_json::Value {
+    let mut releases: HashMap<&str, Vec<serde_json::Value>> = HashMap::new();
+    for entry in entries {
+        releases.entry(entry.version).or_default().push(json!({
+            "filename": entry.filename,
+            "upload_time": entry.upload_time.trim_end_matches('Z'),
+            "upload_time_iso_8601": entry.upload_time,
+        }));
+    }
+    json!({ "releases": releases })
+}
+
 /// Build the JSON Simple API response for a package with relative file URLs.
 ///
 /// File URLs are relative paths like `../../../files/packages/...`
@@ -369,6 +415,8 @@ impl PypiProxy {
 /// - `/relative/simple/{pkg}/` — unauthenticated Simple API with relative file links
 /// - `/basic-auth/relative/simple/{pkg}/` — authenticated Simple API with relative file links
 /// - `/no-upload-time/simple/{pkg}/` — unauthenticated Simple API without `upload-time`
+/// - `/artifactory/api/pypi/test/simple/{pkg}/` — authenticated Artifactory HTML Simple API
+/// - `/artifactory/api/pypi/test/pypi/{pkg}/json` — authenticated Artifactory package metadata
 /// - `/files/…` — unauthenticated file redirect to `files.pythonhosted.org`
 /// - `/basic-auth/files/…` — authenticated file redirect (public:heron)
 /// - `/basic-auth-heron/files/…` — authenticated file redirect (public:heron)
@@ -395,6 +443,42 @@ pub async fn start() -> PypiProxy {
                 .headers
                 .get(&http::header::AUTHORIZATION)
                 .and_then(parse_bearer_auth);
+
+            // Route: /artifactory/api/pypi/test/pypi/{pkg}/json
+            if let Some(package_name) = path
+                .strip_prefix("/artifactory/api/pypi/test/pypi/")
+                .and_then(|path| path.strip_suffix("/json"))
+                .filter(|package_name| !package_name.contains('/'))
+            {
+                if auth
+                    .as_ref()
+                    .is_some_and(|(username, password)| username == "public" && password == "heron")
+                {
+                    if let Some(entries) = db.get(package_name) {
+                        let body = build_artifactory_package_metadata_response(entries);
+                        return ResponseTemplate::new(200).set_body_json(body);
+                    }
+                    return ResponseTemplate::new(404);
+                }
+                return unauthorized_response();
+            }
+
+            // Route: /artifactory/api/pypi/test/simple/{pkg}/
+            if let Some(package_name) =
+                extract_package_name(path, "/artifactory/api/pypi/test/simple/")
+            {
+                if auth
+                    .as_ref()
+                    .is_some_and(|(username, password)| username == "public" && password == "heron")
+                {
+                    if let Some(entries) = db.get(package_name) {
+                        let body = build_artifactory_simple_api_response(entries);
+                        return ResponseTemplate::new(200).set_body_raw(body, "text/html");
+                    }
+                    return ResponseTemplate::new(404);
+                }
+                return unauthorized_response();
+            }
 
             // Route: /basic-auth/files/...
             if let Some(rest) = path.strip_prefix("/basic-auth/files/") {
